@@ -1,0 +1,3 @@
+index.html
+    On this page, moved the action into the form tag.
+    Now the unfollow button is displaying correctly
