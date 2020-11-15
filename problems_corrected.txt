@@ -1,3 +1,22 @@
 index.html
     On this page, moved the action into the form tag.
-    Now the unfollow button is displaying correctly
+    Now the unfollow button is displaying correctly.
+
+edit.html
+    Added labels for the fields.
+
+Part One: Step Seven
+    How is the logged in user being kept track of?
+        Using session['curr_user'] is being set to the current user.id value
+
+    What is Flask's g object?
+        This is a global object, referring to data being global within a context.
+        Not a good place to store data between requests
+
+    What is the purpose of add_user_to_g?
+        This will check if a user is logged in and set the global value of 
+        user to the current id of the logged in user.
+
+    What does @app.before_request mean?
+        It runs the function that follows before every request to the application.
+        

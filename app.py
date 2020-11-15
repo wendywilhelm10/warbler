@@ -4,8 +4,8 @@ from flask import Flask, render_template, request, flash, redirect, session, g
 from flask_debugtoolbar import DebugToolbarExtension
 from sqlalchemy.exc import IntegrityError
 
-from forms import UserAddForm, LoginForm, MessageForm
-from models import db, connect_db, User, Message
+from forms import UserAddForm, LoginForm, MessageForm, UserEditForm
+from models import db, connect_db, User, Message, Follows
 
 CURR_USER_KEY = "curr_user"
 
@@ -213,7 +213,30 @@ def stop_following(follow_id):
 def profile():
     """Update profile for current user."""
 
-    # IMPLEMENT THIS
+    if not g.user:
+        flash("Access unauthorized", "danger")
+        return redirect("/")
+
+    user = User.query.get_or_404(g.user.id)
+    form = UserEditForm(obj=user)
+
+    if form.validate_on_submit():
+        password = form.password.data
+
+        valid_user = User.authenticate(user.username, password)
+        if valid_user:
+            user.username = form.username.data
+            user.email = form.email.data   
+            user.image_url = form.image_url.data
+            user.header_image_url = form.header_image_url.data  
+            user.bio = form.bio.data
+            db.session.commit()
+            return redirect(f'/users/{g.user.id}')
+        else:
+            flash('Invalid Password', 'danger')
+            return redirect('/')
+    else:
+        return render_template('users/edit.html', form=form, user_id=g.user.id)
 
 
 @app.route('/users/delete', methods=["POST"])
@@ -294,8 +317,13 @@ def homepage():
     """
 
     if g.user:
+        following_users = [u.user_being_followed_id for u in Follows.query.filter_by(user_following_id=g.user.id)]
+        print('************FOLLOWING THESE USERS***************')
+        following_users.append(g.user.id)
+        print(following_users)
         messages = (Message
                     .query
+                    .filter(Message.user_id.in_(following_users))
                     .order_by(Message.timestamp.desc())
                     .limit(100)
                     .all())
