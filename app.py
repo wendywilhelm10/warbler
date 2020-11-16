@@ -5,7 +5,7 @@ from flask_debugtoolbar import DebugToolbarExtension
 from sqlalchemy.exc import IntegrityError
 
 from forms import UserAddForm, LoginForm, MessageForm, UserEditForm
-from models import db, connect_db, User, Message, Follows
+from models import db, connect_db, User, Message, Follows, Likes
 
 CURR_USER_KEY = "curr_user"
 
@@ -131,7 +131,11 @@ def list_users():
     search = request.args.get('q')
 
     if not search:
-        users = User.query.all()
+        if not g.user:
+            users = User.query.all()
+        else:
+            # likes = [l.message_id for l in Likes.query.filter_by(user_id = g.user.id).all()]
+            users = User.query.filter(User.id != g.user.id).all()
     else:
         users = User.query.filter(User.username.like(f"%{search}%")).all()
 
@@ -177,6 +181,20 @@ def users_followers(user_id):
 
     user = User.query.get_or_404(user_id)
     return render_template('users/followers.html', user=user)
+
+
+@app.route('/users/<int:user_id>/likes')
+def show_likes(user_id):
+    """Show list of likes messages for this user."""
+
+    if not g.user:
+        flash("Access unauthorized.", "danger")
+        return redirect("/")
+
+    user = User.query.get_or_404(user_id)
+    likes = [l.message_id for l in Likes.query.filter_by(user_id=g.user.id).all()]
+    messages = Message.query.filter(Message.id.in_(likes)).all()
+    return render_template('users/likes.html', user=user, messages=messages)
 
 
 @app.route('/users/follow/<int:follow_id>', methods=['POST'])
@@ -318,9 +336,7 @@ def homepage():
 
     if g.user:
         following_users = [u.user_being_followed_id for u in Follows.query.filter_by(user_following_id=g.user.id)]
-        print('************FOLLOWING THESE USERS***************')
         following_users.append(g.user.id)
-        print(following_users)
         messages = (Message
                     .query
                     .filter(Message.user_id.in_(following_users))
@@ -328,10 +344,44 @@ def homepage():
                     .limit(100)
                     .all())
 
-        return render_template('home.html', messages=messages)
+        # get likes and pass these in
+        likes = [l.message_id for l in Likes.query.filter_by(user_id = g.user.id).all()]
+
+        return render_template('home.html', messages=messages, likes=likes)
 
     else:
         return render_template('home-anon.html')
+
+
+@app.route('/users/add_like/<int:msg_id>', methods=['POST'])
+def like_message(msg_id):
+
+    if not g.user:
+        flash("Unauthorized, can not add like.", "danger")
+        return redirect("/")
+
+    like = Likes.query.filter_by(user_id=g.user.id, message_id=msg_id).all()
+    if like:
+        print("message has already been liked")
+        return redirect("/")
+
+    new_like = Likes(user_id=g.user.id, message_id=msg_id)
+    db.session.add(new_like)
+    db.session.commit()
+
+    return redirect('/')
+
+@app.route('/users/unlike/<int:msg_id>', methods=['POST'])
+def unlike_message(msg_id):
+
+    if not g.user:
+        flash("Unauthorized, can not delete like.", "danger")
+        return redirect("/")
+
+    like = Likes.query.filter_by(user_id=g.user.id, message_id=msg_id).all()
+    db.session.delete(like[0])
+    db.session.commit()
+    return redirect('/')
 
 
 ##############################################################################
