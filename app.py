@@ -18,7 +18,7 @@ app.config['SQLALCHEMY_DATABASE_URI'] = (
 
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SQLALCHEMY_ECHO'] = False
-app.config['DEBUG_TB_INTERCEPT_REDIRECTS'] = True
+app.config['DEBUG_TB_INTERCEPT_REDIRECTS'] = False
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', "it's a secret")
 toolbar = DebugToolbarExtension(app)
 
@@ -83,6 +83,7 @@ def signup():
 
         do_login(user)
 
+        print(user)
         return redirect("/")
 
     else:
@@ -143,7 +144,7 @@ def list_users():
 
 
 @app.route('/users/<int:user_id>')
-def users_show(user_id):
+def show_users(user_id):
     """Show user profile."""
 
     user = User.query.get_or_404(user_id)
@@ -172,7 +173,7 @@ def show_following(user_id):
 
 
 @app.route('/users/<int:user_id>/followers')
-def users_followers(user_id):
+def show_followers(user_id):
     """Show list of followers of this user."""
 
     if not g.user:
@@ -225,6 +226,32 @@ def stop_following(follow_id):
     db.session.commit()
 
     return redirect(f"/users/{g.user.id}/following")
+
+
+@app.route('/users/add_like/<int:msg_id>', methods=['POST'])
+def like_message(msg_id):
+
+    if not g.user:
+        flash("Unauthorized, can not add like.", "danger")
+        return redirect("/")
+
+    new_like = Likes(user_id=g.user.id, message_id=msg_id)
+    db.session.add(new_like)
+    db.session.commit()
+
+    return redirect('/')
+
+@app.route('/users/unlike/<int:msg_id>', methods=['POST'])
+def unlike_message(msg_id):
+
+    if not g.user:
+        flash("Unauthorized, can not delete like.", "danger")
+        return redirect("/")
+
+    like = Likes.query.filter_by(user_id=g.user.id, message_id=msg_id).all()
+    db.session.delete(like[0])
+    db.session.commit()
+    return redirect('/')
 
 
 @app.route('/users/profile', methods=["GET", "POST"])
@@ -316,6 +343,10 @@ def messages_destroy(message_id):
         return redirect("/")
 
     msg = Message.query.get(message_id)
+    if g.user.id != msg.user_id:
+        flash("Access unauthorized.", "danger")
+        return redirect("/")
+
     db.session.delete(msg)
     db.session.commit()
 
@@ -351,37 +382,6 @@ def homepage():
 
     else:
         return render_template('home-anon.html')
-
-
-@app.route('/users/add_like/<int:msg_id>', methods=['POST'])
-def like_message(msg_id):
-
-    if not g.user:
-        flash("Unauthorized, can not add like.", "danger")
-        return redirect("/")
-
-    like = Likes.query.filter_by(user_id=g.user.id, message_id=msg_id).all()
-    if like:
-        print("message has already been liked")
-        return redirect("/")
-
-    new_like = Likes(user_id=g.user.id, message_id=msg_id)
-    db.session.add(new_like)
-    db.session.commit()
-
-    return redirect('/')
-
-@app.route('/users/unlike/<int:msg_id>', methods=['POST'])
-def unlike_message(msg_id):
-
-    if not g.user:
-        flash("Unauthorized, can not delete like.", "danger")
-        return redirect("/")
-
-    like = Likes.query.filter_by(user_id=g.user.id, message_id=msg_id).all()
-    db.session.delete(like[0])
-    db.session.commit()
-    return redirect('/')
 
 
 ##############################################################################
